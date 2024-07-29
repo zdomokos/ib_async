@@ -155,7 +155,7 @@ class IB:
           Is emitted after disconnecting from TWS/gateway.
 
         * ``updateEvent`` ():
-          Is emitted after a network packet has been handeled.
+          Is emitted after a network packet has been handled.
 
         * ``pendingTickersEvent`` (tickers: Set[:class:`.Ticker`]):
           Emits the set of tickers that have been updated during the last
@@ -1533,6 +1533,13 @@ class IB:
         reqId = self.wrapper.endTicker(ticker, "mktDepth") if ticker else 0
         if ticker and reqId:
             self.client.cancelMktDepth(reqId, isSmartDepth)
+
+            # clear market depth state from live ticker since it is not longer
+            # being updated after the cancel request.
+            ticker.domBids.clear()
+            ticker.domAsks.clear()
+            ticker.domBidsDict.clear()
+            ticker.domAsksDict.clear()
         else:
             self._logger.error(
                 f"cancelMktDepth: No reqId found for contract {contract}"

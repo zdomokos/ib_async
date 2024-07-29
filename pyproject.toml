@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ib_async"
-version = "1.0.2"
+version = "1.0.3"
 description = "Python sync/async framework for Interactive Brokers API"
 authors = ["Ewald de Wit"]
 maintainers = ["Matt Stancliff <matt@matt.sh>"]
@@ -33,6 +33,7 @@ nest_asyncio = "*"
 optional = true
 
 [tool.poetry.group.dev.dependencies]
+mypy = ">=1.11.0"
 pytest = ">=8.0"
 pytest-asyncio = ">=0.23"
 pandas = "^2.2.1"
