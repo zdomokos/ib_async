@@ -2,7 +2,7 @@
 
 import dataclasses
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, cast
 
 from .contract import (
@@ -32,7 +32,7 @@ from .objects import (
     TickAttribLast,
 )
 from .order import Order, OrderComboLeg, OrderCondition, OrderState
-from .util import UNSET_DOUBLE, ZoneInfo, parseIBDatetime
+from .util import parseIBDatetime, UNSET_DOUBLE, ZoneInfo
 from .wrapper import Wrapper
 
 
@@ -152,13 +152,19 @@ class Decoder:
             if method:
                 try:
                     args = [
-                        field
-                        if typ is str
-                        else int(field or 0)
-                        if typ is int
-                        else float(field or 0)
-                        if typ is float
-                        else bool(int(field or 0))
+                        (
+                            field
+                            if typ is str
+                            else (
+                                int(field or 0)
+                                if typ is int
+                                else (
+                                    float(field or 0)
+                                    if typ is float
+                                    else bool(int(field or 0))
+                                )
+                            )
+                        )
                         for (typ, field) in zip(types, fields[skip:])
                     ]
                     method(*args)
@@ -465,7 +471,7 @@ class Decoder:
             if tz:
                 time = time.replace(tzinfo=ZoneInfo(str(tz)))
 
-        ex.time = time.astimezone(timezone.utc)
+        ex.time = time.astimezone(self.wrapper.defaultTimezone)
         self.wrapper.execDetails(int(reqId), c, ex)
 
     def historicalData(self, fields):
@@ -779,7 +785,7 @@ class Decoder:
             get()
             price = float(get())
             size = float(get())
-            dt = datetime.fromtimestamp(time, timezone.utc)
+            dt = datetime.fromtimestamp(time, self.wrapper.defaultTimezone)
             ticks.append(HistoricalTick(dt, price, size))
 
         done = bool(int(get()))
@@ -800,7 +806,7 @@ class Decoder:
             priceAsk = float(get())
             sizeBid = float(get())
             sizeAsk = float(get())
-            dt = datetime.fromtimestamp(time, timezone.utc)
+            dt = datetime.fromtimestamp(time, self.wrapper.defaultTimezone)
             ticks.append(
                 HistoricalTickBidAsk(dt, attrib, priceBid, priceAsk, sizeBid, sizeAsk)
             )
@@ -821,7 +827,7 @@ class Decoder:
             size = float(get())
             exchange = get()
             specialConditions = get()
-            dt = datetime.fromtimestamp(time, timezone.utc)
+            dt = datetime.fromtimestamp(time, self.wrapper.defaultTimezone)
             ticks.append(
                 HistoricalTickLast(dt, attrib, price, size, exchange, specialConditions)
             )
@@ -914,6 +920,7 @@ class Decoder:
             o.faPercentage,
             *fields,
         ) = fields
+
         if self.serverVersion < 177:
             o.faProfile, *fields = fields
 

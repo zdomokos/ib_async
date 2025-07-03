@@ -1,8 +1,10 @@
 """Object hierarchy."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from datetime import date as date_, datetime
-from typing import List, NamedTuple, Optional, Union
+from datetime import date as date_, datetime, timezone, tzinfo
+from typing import Any, List, NamedTuple, Optional, Union
 
 from eventkit import Event
 
@@ -321,19 +323,66 @@ class Fill(NamedTuple):
     time: datetime
 
 
-class OptionComputation(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class OptionComputation:
     tickAttrib: int
-    impliedVol: Optional[float]
-    delta: Optional[float]
-    optPrice: Optional[float]
-    pvDividend: Optional[float]
-    gamma: Optional[float]
-    vega: Optional[float]
-    theta: Optional[float]
-    undPrice: Optional[float]
+    impliedVol: float | None = None
+    delta: float | None = None
+    optPrice: float | None = None
+    pvDividend: float | None = None
+    gamma: float | None = None
+    vega: float | None = None
+    theta: float | None = None
+    undPrice: float | None = None
+
+    def __add__(self, other: OptionComputation) -> OptionComputation:
+        if not isinstance(other, self.__class__):
+            raise TypeError(f"Cannot add {type(self)} and {type(other)}")
+
+        return self.__class__(
+            tickAttrib=0,
+            impliedVol=(self.impliedVol or 0) + (other.impliedVol or 0),
+            delta=(self.delta or 0) + (other.delta or 0),
+            optPrice=(self.optPrice or 0) + (other.optPrice or 0),
+            gamma=(self.gamma or 0) + (other.gamma or 0),
+            vega=(self.vega or 0) + (other.vega or 0),
+            theta=(self.theta or 0) + (other.theta or 0),
+            undPrice=self.undPrice,
+        )
+
+    def __sub__(self, other: OptionComputation) -> OptionComputation:
+        if not isinstance(other, self.__class__):
+            raise TypeError(f"Cannot subtract {type(self)} and {type(other)}")
+
+        return self.__class__(
+            tickAttrib=0,
+            impliedVol=(self.impliedVol or 0) - (other.impliedVol or 0),
+            delta=(self.delta or 0) - (other.delta or 0),
+            optPrice=(self.optPrice or 0) - (other.optPrice or 0),
+            gamma=(self.gamma or 0) - (other.gamma or 0),
+            vega=(self.vega or 0) - (other.vega or 0),
+            theta=(self.theta or 0) - (other.theta or 0),
+            undPrice=self.undPrice,
+        )
+
+    def __mul__(self, other: int | float) -> OptionComputation:
+        if not isinstance(other, (int, float)):
+            raise TypeError(f"Cannot multiply {type(self)} and {type(other)}")
+
+        return self.__class__(
+            tickAttrib=0,
+            impliedVol=(self.impliedVol or 0) * other,
+            delta=(self.delta or 0) * other,
+            optPrice=(self.optPrice or 0) * other,
+            gamma=(self.gamma or 0) * other,
+            vega=(self.vega or 0) * other,
+            theta=(self.theta or 0) * other,
+            undPrice=self.undPrice,
+        )
 
 
-class OptionChain(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class OptionChain:
     exchange: str
     underlyingConId: int
     tradingClass: str
@@ -342,26 +391,30 @@ class OptionChain(NamedTuple):
     strikes: List[float]
 
 
-class Dividends(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class Dividends:
     past12Months: Optional[float]
     next12Months: Optional[float]
     nextDate: Optional[date_]
     nextAmount: Optional[float]
 
 
-class NewsArticle(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class NewsArticle:
     articleType: int
     articleText: str
 
 
-class HistoricalNews(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class HistoricalNews:
     time: datetime
     providerCode: str
     articleId: str
     headline: str
 
 
-class NewsTick(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class NewsTick:
     timeStamp: int
     providerCode: str
     articleId: str
@@ -369,25 +422,29 @@ class NewsTick(NamedTuple):
     extraData: str
 
 
-class NewsBulletin(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class NewsBulletin:
     msgId: int
     msgType: int
     message: str
     origExchange: str
 
 
-class FamilyCode(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class FamilyCode:
     accountID: str
     familyCodeStr: str
 
 
-class SmartComponent(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class SmartComponent:
     bitNumber: int
     exchange: str
     exchangeLetter: str
 
 
-class ConnectionStats(NamedTuple):
+@dataclass(slots=True, frozen=True)
+class ConnectionStats:
     startTime: float
     duration: float
     numBytesRecv: int
@@ -488,3 +545,18 @@ class FundamentalRatios(DynamicObject):
     """
 
     pass
+
+
+@dataclass
+class IBDefaults:
+    """A simple way to provide default values when populating API data."""
+
+    # optionally replace IBKR using -1 price and 0 size when quotes don't exist
+    emptyPrice: Any = -1
+    emptySize: Any = 0
+
+    # optionally replace ib_async default for all instance variable values before popualted from API updates
+    unset: Any = nan
+
+    # optionally change the timezone used for log history events in objects (no impact on orders or data processing)
+    timezone: tzinfo = timezone.utc

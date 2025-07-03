@@ -7,7 +7,7 @@ import math
 import struct
 import time
 from collections import deque
-from typing import Deque, List, Optional, Callable, Any
+from typing import Any, Callable, Deque, List, Optional
 
 from eventkit import Event
 
@@ -15,7 +15,7 @@ from .connection import Connection
 from .contract import Contract
 from .decoder import Decoder
 from .objects import ConnectionStats, WshEventData
-from .util import UNSET_DOUBLE, UNSET_INTEGER, dataclassAsTuple, getLoop, run
+from .util import dataclassAsTuple, getLoop, run, UNSET_DOUBLE, UNSET_INTEGER
 
 
 class Client:
@@ -296,7 +296,7 @@ class Client:
             bool: lambda b: "1" if b else "0",
 
             # Lists of tags become semicolon-appended KV pairs
-            list: lambda l: "".join([f"{v.tag}={v.value};" for v in l]),
+            list: lambda lst: "".join([f"{v.tag}={v.value};" for v in lst]),
         }
         # fmt: on
 
@@ -472,8 +472,20 @@ class Client:
 
     def placeOrder(self, orderId, contract, order):
         version = self.serverVersion()
+
+        # IBKR API BUG FIX:
+        # IBKR sometimes back-populates the 'volatility' field into live orders, but then if we try to
+        # modify an order using cached order objects, IBKR rejects modifications because 'volatility'
+        # is not allowed to be set (even though _they_ added it to our previously submitted order).
+        # Solution: if an order is NOT a VOL order, delete the 'volatility' value to prevent this error.
+        if not order.orderType.startswith("VOL"):
+            # ONLY volatility orders can have 'volatility' set when sending API data.
+            order.volatility = None
+
+        # The IBKR API protocol is just a series of in-order arguments denoted by position.
+        # The upstream API parses all fields based on the first value (the message type).
         fields = [
-            3,
+            3,  # PLACE_ORDER message type
             orderId,
             contract,
             contract.secIdType,
@@ -548,9 +560,9 @@ class Client:
             order.allOrNone,
             order.minQty,
             order.percentOffset,
-            order.eTradeOnly,
-            order.firmQuoteOnly,
-            order.nbboPriceCap,
+            order.eTradeOnly,  # always False
+            order.firmQuoteOnly,  # always False
+            order.nbboPriceCap,  # always UNSET
             order.auctionStrategy,
             order.startingPrice,
             order.stockRefPrice,
